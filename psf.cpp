@@ -1,7 +1,11 @@
-#define MYVERSION "2.0.37"
+#define MYVERSION "2.0.38"
 
 /*
 	changelog
+
+2014-03-27 20:32 UTC - kode54
+- Fixed seeking when silence test buffer is not empty
+- Version is now 2.0.38
 
 2013-01-20 00:56 UTC - kode54
 - Fixed memory protection cleanup
@@ -1169,6 +1173,10 @@ public:
 	void decode_seek( double p_seconds, abort_callback & p_abort )
 	{
 		eof = false;
+
+		double buffered_time = (double)(silence_test_buffer.data_available() / 2) / 44100.0;
+
+		xsfemu_pos += buffered_time;
 
 		silence_test_buffer.reset();
 
