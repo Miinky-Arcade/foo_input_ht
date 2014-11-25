@@ -1,7 +1,13 @@
-#define MYVERSION "2.0.38"
+#define MYVERSION "2.0.39"
 
 /*
 	changelog
+
+2014-11-25 01:02 UTC - kode54
+- Updated psflib to fix tag error handling
+- Replaced timestamp parsing function
+- Stop accepting _refresh tags for this format
+- Version is now 2.0.39
 
 2014-03-27 20:32 UTC - kode54
 - Fixed seeking when silence test buffer is not empty
@@ -369,76 +375,47 @@ static const char field_fade[]="xsf_fade";
 
 static unsigned long parse_time_crap(const char *input)
 {
-	if (!input) return BORK_TIME;
-	int len = strlen(input);
-	if (!len) return BORK_TIME;
-	int value = 0;
+	unsigned long value = 0;
+	unsigned long multiplier = 1000;
+	const char * ptr = input;
+	unsigned long colon_count = 0;
+
+	while (*ptr && ((*ptr >= '0' && *ptr <= '9') || *ptr == ':'))
 	{
-		int i;
-		for (i = len - 1; i >= 0; i--)
+		colon_count += *ptr == ':';
+		++ptr;
+	}
+	if (colon_count > 2) return BORK_TIME;
+	if (*ptr && *ptr != '.' && *ptr != ',') return BORK_TIME;
+	++ptr;
+	while (*ptr && *ptr >= '0' && *ptr <= '9') ++ptr;
+	if (*ptr) return BORK_TIME;
+
+	ptr = strrchr(input, ':');
+	if (!ptr)
+		ptr = input;
+	for (;;)
+	{
+		char * end;
+		if (ptr != input) ++ptr;
+		if (multiplier == 1000)
 		{
-			if ((input[i] < '0' || input[i] > '9') && input[i] != ':' && input[i] != ',' && input[i] != '.')
-			{
-				return BORK_TIME;
-			}
+			double temp = pfc::string_to_float(ptr);
+			if (temp >= 60.0) return BORK_TIME;
+			value = (long)(temp * 1000.0f);
 		}
-	}
-	pfc::string8 foo = input;
-	char *bar = (char *) foo.get_ptr();
-	char *strs = bar + foo.length() - 1;
-	while (strs > bar && (*strs >= '0' && *strs <= '9'))
-	{
-		strs--;
-	}
-	if (*strs == '.' || *strs == ',')
-	{
-		// fraction of a second
-		strs++;
-		if (strlen(strs) > 3) strs[3] = 0;
-		value = atoi(strs);
-		switch (strlen(strs))
+		else
 		{
-		case 1:
-			value *= 100;
-			break;
-		case 2:
-			value *= 10;
-			break;
+			unsigned long temp = strtoul(ptr, &end, 10);
+			if (temp >= 60 && multiplier < 3600000) return BORK_TIME;
+			value += temp * multiplier;
 		}
-		strs--;
-		*strs = 0;
-		strs--;
+		if (ptr == input) break;
+		ptr -= 2;
+		while (ptr > input && *ptr != ':') --ptr;
+		multiplier *= 60;
 	}
-	while (strs > bar && (*strs >= '0' && *strs <= '9'))
-	{
-		strs--;
-	}
-	// seconds
-	if (*strs < '0' || *strs > '9') strs++;
-	value += atoi(strs) * 1000;
-	if (strs > bar)
-	{
-		strs--;
-		*strs = 0;
-		strs--;
-		while (strs > bar && (*strs >= '0' && *strs <= '9'))
-		{
-			strs--;
-		}
-		if (*strs < '0' || *strs > '9') strs++;
-		value += atoi(strs) * 60000;
-		if (strs > bar)
-		{
-			strs--;
-			*strs = 0;
-			strs--;
-			while (strs > bar && (*strs >= '0' && *strs <= '9'))
-			{
-				strs--;
-			}
-			value += atoi(strs) * 3600000;
-		}
-	}
+
 	return value;
 }
 
@@ -615,11 +592,6 @@ static int psf_info_meta(void * context, const char * name, const char * value)
 	else if (!stricmp_utf8_partial(tag, "_lib"))
 	{
 		DBG("found _lib");
-		state->info->info_set(tag, value);
-	}
-	else if (!stricmp_utf8(tag, "_refresh"))
-	{
-		DBG("found _refresh");
 		state->info->info_set(tag, value);
 	}
 	else if (tag[0] == '_')
