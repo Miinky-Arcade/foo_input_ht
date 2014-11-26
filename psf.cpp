@@ -1,7 +1,11 @@
-#define MYVERSION "2.0.39"
+#define MYVERSION "2.0.40"
 
 /*
 	changelog
+
+2014-11-26 05:12 UTC - kode54
+- Fixed parsing seconds/milliseconds only timestamps
+- Version is now 2.0.40
 
 2014-11-25 01:02 UTC - kode54
 - Updated psflib to fix tag error handling
@@ -387,7 +391,7 @@ static unsigned long parse_time_crap(const char *input)
 	}
 	if (colon_count > 2) return BORK_TIME;
 	if (*ptr && *ptr != '.' && *ptr != ',') return BORK_TIME;
-	++ptr;
+	if (*ptr) ++ptr;
 	while (*ptr && *ptr >= '0' && *ptr <= '9') ++ptr;
 	if (*ptr) return BORK_TIME;
 
